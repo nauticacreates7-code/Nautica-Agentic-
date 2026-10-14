@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f8f5" />
+  <title>Agentic Plagiarism Checker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: { ink: '#18251f', muted: '#75817a', canvas: '#f7f8f5', line: '#e6eae5', forest: '#236b4b', mint: '#dff3e8', gold: '#f0a54b' },
+        fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'], display: ['Manrope', 'Inter', 'ui-sans-serif', 'sans-serif'] },
+        boxShadow: { soft: '0 12px 40px rgba(29, 48, 37, .06)' }
+      }}
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { background: #f7f8f5; }
+    .drop-active { border-color: #236b4b !important; background: #eff8f2 !important; transform: scale(1.005); }
+    .ring { background: conic-gradient(#236b4b var(--progress), #e7eee9 0); }
+    .step-dot { animation: pulse 1.4s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: .35; transform: scale(.82); } }
+    @keyframes rise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
+    .result-card { animation: rise .35s ease both; }
+    .mono { font-family: 'DM Mono', monospace; }
+    .typing-dot { animation: pulse 1s ease-in-out infinite; }
+    .typing-dot:nth-child(2) { animation-delay: .15s; }
+    .typing-dot:nth-child(3) { animation-delay: .3s; }
+    @media print {
+      body { background: white !important; }
+      header, #uploadPanel, #loadingPanel, footer, .report-actions, #flaggedToggle, #emptyResults, #chatOverlay, #chatLauncher { display: none !important; }
+      #report { display: block !important; margin-top: 0 !important; }
+      #resultsList { display: block !important; }
+      .result-card, aside, #coveragePanel, #summaryPanel > div { break-inside: avoid; box-shadow: none !important; }
+      a { color: inherit !important; text-decoration: none !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans text-ink antialiased">
+  <div class="min-h-screen">
+    <header class="border-b border-line bg-white/80">
+      <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+        <a href="#top" class="flex items-center gap-3" aria-label="Agentic home">
+          <span class="grid h-10 w-10 place-items-center rounded-xl bg-forest text-white shadow-sm">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3.75h7l4.25 4.5v11A1.75 1.75 0 0 1 16.5 21h-9A1.75 1.75 0 0 1 5.75 19.25v-13.75A1.75 1.75 0 0 1 7.5 3.75Z" stroke="currentColor" stroke-width="1.6"/><path d="M14 4v4.5h4M8.5 12h7M8.5 15.5h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </span>
+          <span><span class="block font-display text-sm font-extrabold tracking-tight sm:text-base">Agentic <span class="text-forest">Research</span></span><span class="block text-[10px] font-semibold uppercase tracking-[.18em] text-muted">Integrity workspace</span></span>
+        </a>
+        <div class="hidden items-center gap-2 rounded-full border border-line bg-white px-3 py-1.5 text-xs font-medium text-muted sm:flex"><span class="h-2 w-2 rounded-full bg-emerald-500"></span> Scholarly source analysis</div>
+        <span class="rounded-full bg-[#edf4ee] px-3 py-1.5 text-[11px] font-bold tracking-wide text-forest">BETA</span>
+      </div>
+    </header>
+
+    <main id="top" class="mx-auto max-w-6xl px-5 pb-16 pt-10 sm:px-8 sm:pt-14">
+      <section class="mx-auto max-w-3xl text-center">
+        <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-[#dce9df] bg-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[.14em] text-forest shadow-sm"><span class="text-gold">✳</span> Research with confidence</div>
+        <h1 class="font-display text-3xl font-extrabold tracking-[-.045em] text-ink sm:text-5xl">Agentic Plagiarism Checker</h1>
+        <p class="mx-auto mt-4 max-w-2xl text-sm leading-6 text-muted sm:text-base">Trace the ideas in your paper. Our research agents compare passages against scholarly sources and surface the matches that matter.</p>
+      </section>
+
+      <section id="uploadPanel" class="mx-auto mt-9 max-w-3xl rounded-2xl border border-line bg-white p-4 shadow-soft sm:mt-10 sm:p-6">
+        <div id="dropZone" class="group cursor-pointer rounded-xl border-2 border-dashed border-[#dce4dd] bg-[#fbfcfa] px-5 py-8 text-center transition duration-200 sm:py-10" role="button" tabindex="0" aria-label="Choose or drop a PDF file">
+          <input id="fileInput" type="file" accept="application/pdf,.pdf" class="hidden" />
+          <span class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-mint text-forest transition group-hover:scale-105">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.5V4m0 0L7.75 8.25M12 4l4.25 4.25M5 14.5v3.75A1.75 1.75 0 0 0 6.75 20h10.5A1.75 1.75 0 0 0 19 18.25V14.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <p class="mt-4 text-sm font-bold text-ink">Drop your paper here <span class="font-medium text-muted">or <span class="text-forest underline decoration-[#b9d6c3] underline-offset-2">browse files</span></span></p>
+          <p class="mt-1.5 text-xs text-muted">PDF document · Max file size 20 MB</p>
+          <div id="fileSelection" class="mt-4 hidden items-center justify-center gap-2 text-sm font-semibold text-forest"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="fileName"></span><span id="fileSize" class="font-normal text-muted"></span></div>
+        </div>
+        <div class="mt-4 flex flex-col items-center gap-3 sm:flex-row">
+          <button id="checkButton" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-forest px-6 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#195b3d] focus:outline-none focus:ring-4 focus:ring-[#236b4b]/15 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto">
+            <span>Check plagiarism</span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span class="text-xs text-muted">Your document is analyzed securely.</span>
+        </div>
+        <p id="uploadError" class="mt-3 hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert"></p>
+      </section>
+
+      <section id="loadingPanel" class="mx-auto mt-6 hidden max-w-3xl rounded-2xl border border-line bg-white p-5 shadow-soft sm:p-6" aria-live="polite">
+        <div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-mint text-forest"><svg class="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".2" stroke-width="2.5"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></span><div><p class="text-sm font-bold">Research agents are on it</p><p class="mt-0.5 text-xs text-muted">This usually takes a few moments.</p></div></div>
+        <div id="agentSteps" class="mt-5 grid gap-2 sm:grid-cols-2"></div>
+      </section>
+
+      <section id="report" class="mt-10 hidden" aria-live="polite">
+        <div class="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p class="text-[11px] font-bold uppercase tracking-[.17em] text-forest">Analysis complete</p><h2 class="mt-1 font-display text-2xl font-extrabold tracking-tight">Similarity report</h2><p id="resultCount" class="mt-1 text-sm text-muted"></p></div><div class="report-actions flex gap-2"><button id="downloadCsv" class="rounded-lg border border-line bg-white px-3 py-2 text-xs font-bold text-ink hover:bg-[#f5f8f5]">Download CSV</button><button id="printReport" class="rounded-lg bg-forest px-3 py-2 text-xs font-bold text-white hover:bg-[#195b3d]">Print / Save PDF</button></div></div>
+        <div id="summaryPanel" class="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
+        <div class="grid gap-5 lg:grid-cols-[260px_1fr]">
+          <aside class="h-fit rounded-2xl border border-line bg-white p-5 shadow-soft">
+            <p class="text-xs font-bold uppercase tracking-[.12em] text-muted">Overall similarity</p>
+            <div class="mt-5 flex justify-center"><div id="overallRing" class="ring grid h-40 w-40 place-items-center rounded-full p-[10px]" style="--progress: 0deg"><div class="grid h-full w-full place-items-center rounded-full bg-white"><div class="text-center"><p class="font-display text-4xl font-extrabold tracking-[-.06em]" id="overallValue">0<span class="text-xl">%</span></p><p class="mt-1 text-[11px] font-medium text-muted">matched content</p></div></div></div></div>
+            <div class="mt-5 border-t border-line pt-4"><div class="flex items-center justify-between text-xs"><span class="text-muted">Passages analyzed</span><span id="passageCount" class="font-bold text-ink">0</span></div><div class="mt-3 flex items-center justify-between text-xs"><span class="text-muted">Flagged passages</span><span id="flaggedCount" class="font-bold text-ink">0</span></div></div>
+            <p class="mt-4 rounded-lg bg-[#f5f8f5] px-3 py-2.5 text-[11px] leading-5 text-muted">Similarity is a signal for review, not a verdict. Always check context and citations.</p>
+          </aside>
+          <div class="min-w-0">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white px-4 py-3">
+              <div><h3 class="text-sm font-bold">Matched passages</h3><p class="mt-0.5 text-xs text-muted">Ranked by similarity score · evidence excerpts are from source abstracts</p></div>
+              <label class="flex cursor-pointer items-center gap-2 text-xs font-semibold text-muted"><input id="flaggedToggle" type="checkbox" class="h-4 w-4 rounded border-gray-300 accent-[#236b4b]" />Show only flagged <span class="text-ink">(&gt;40)</span></label>
+            </div>
+            <div id="resultsList" class="space-y-3"></div>
+            <div id="emptyResults" class="hidden rounded-xl border border-dashed border-line bg-white p-8 text-center text-sm text-muted">No passages match this filter.</div>
+          </div>
+        </div>
+        <div id="coveragePanel" class="mt-5 rounded-2xl border border-line bg-white p-5 shadow-soft"></div>
+      </section>
+      <footer class="mx-auto mt-16 flex max-w-3xl flex-col items-center justify-between gap-2 border-t border-line pt-5 text-[11px] text-muted sm:flex-row"><span>Built for careful, transparent research.</span><span class="mono">AR · 01</span></footer>
+    </main>
+  </div>
+
+  <button id="chatLauncher" type="button" class="fixed bottom-5 right-5 z-40 hidden items-center gap-2 rounded-full bg-forest px-5 py-3.5 text-sm font-bold text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-[#195b3d] focus:outline-none focus:ring-4 focus:ring-forest/25" aria-haspopup="dialog" aria-controls="chatOverlay">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 0 0-7.2 13l-.9 3.2 3.4-.9A8.5 8.5 0 1 0 12 3.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8.5 10h7M8.5 13.5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+    Ask the Integrity Agent
+  </button>
+
+  <div id="chatOverlay" class="fixed inset-0 z-50 hidden items-end bg-black/35 sm:items-stretch sm:justify-end" aria-hidden="true">
+    <section id="chatPanel" role="dialog" aria-modal="true" aria-labelledby="chatTitle" class="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-3xl border border-line bg-white shadow-2xl sm:h-full sm:max-h-none sm:w-full sm:max-w-md sm:rounded-none sm:border-y-0 sm:border-r-0">
+      <div class="flex shrink-0 items-center gap-3 border-b border-line px-5 py-4">
+        <span class="grid h-10 w-10 place-items-center rounded-xl bg-mint text-forest"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 0 0-7.2 13l-.9 3.2 3.4-.9A8.5 8.5 0 1 0 12 3.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8.5 10h7M8.5 13.5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+        <div class="min-w-0 flex-1"><h3 id="chatTitle" class="text-sm font-bold">Ask the Integrity Agent</h3><p class="mt-0.5 text-xs text-muted">Ask about evidence in this report</p></div>
+        <button id="chatClose" type="button" class="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-[#f3f5f2] hover:text-ink" aria-label="Close chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <div id="chatSuggestions" class="shrink-0 space-y-2 border-b border-line bg-white px-4 py-3">
+        <p class="text-[10px] font-bold uppercase tracking-[.12em] text-muted">Suggested questions</p>
+        <div class="flex flex-wrap gap-2"></div>
+      </div>
+      <div id="chatMessages" class="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[#fbfcfa] p-4" aria-live="polite" aria-relevant="additions text"></div>
+      <form id="chatForm" class="grid shrink-0 gap-2 border-t border-line bg-white p-3 sm:grid-cols-[140px_1fr_auto] sm:p-4">
+        <select id="chatChunk" class="rounded-lg border border-line bg-white px-3 py-2.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-forest/20" aria-label="Choose a passage"><option value="">Entire report</option></select>
+        <input id="chatInput" class="min-w-0 rounded-lg border border-line bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-forest/20" placeholder="Ask about a score, source, or citation…" maxlength="1000" required />
+        <button id="chatSend" type="submit" class="rounded-lg bg-forest px-4 py-2.5 text-xs font-bold text-white hover:bg-[#195b3d] disabled:opacity-50">Ask</button>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    // Real PDF analysis uses the backend endpoint and the server-side API key.
+    const API_URL = "/api/check";
+
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const checkButton = document.getElementById('checkButton');
+    const uploadError = document.getElementById('uploadError');
+    const loadingPanel = document.getElementById('loadingPanel');
+    const report = document.getElementById('report');
+    const steps = ['Extracting text...', 'Searching sources...', 'Verifying matches...', 'Scoring...'];
+    let selectedFile = null;
+    let latestResults = [];
+    let activeSessionId = null;
+
+    function formatBytes(bytes) {
+      return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function showError(message) {
+      uploadError.textContent = message;
+      uploadError.classList.remove('hidden');
+    }
+
+    function setFile(file) {
+      uploadError.classList.add('hidden');
+      if (!file) return;
+      if (!(file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
+        selectedFile = null;
+        document.getElementById('fileSelection').classList.add('hidden');
+        showError('Please choose a PDF document to continue.');
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        selectedFile = null;
+        document.getElementById('fileSelection').classList.add('hidden');
+        showError('That file is larger than 20 MB. Choose a smaller PDF and try again.');
+        return;
+      }
+      selectedFile = file;
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileSize').textContent = `· ${formatBytes(file.size)}`;
+      document.getElementById('fileSelection').classList.remove('hidden');
+      checkButton.disabled = false;
+    }
+
+    dropZone.addEventListener('click', (event) => { if (event.target !== fileInput) fileInput.click(); });
+    dropZone.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); fileInput.click(); } });
+    fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+    ['dragenter', 'dragover'].forEach(type => dropZone.addEventListener(type, event => { event.preventDefault(); dropZone.classList.add('drop-active'); }));
+    ['dragleave', 'drop'].forEach(type => dropZone.addEventListener(type, event => { event.preventDefault(); dropZone.classList.remove('drop-active'); }));
+    dropZone.addEventListener('drop', event => setFile(event.dataTransfer.files[0]));
+    checkButton.disabled = false; // Clicking without a PDF shows the upload prompt.
+
+    function renderSteps(activeIndex) {
+      const container = document.getElementById('agentSteps');
+      container.replaceChildren();
+      steps.forEach((label, index) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2.5 rounded-lg bg-[#f7f9f6] px-3 py-2.5 text-xs';
+        const dot = document.createElement('span');
+        dot.className = 'h-2 w-2 rounded-full ' + (index < activeIndex ? 'bg-forest' : index === activeIndex ? 'step-dot bg-gold' : 'bg-[#d4ddd5]');
+        const text = document.createElement('span');
+        text.className = index <= activeIndex ? 'font-semibold text-ink' : 'text-muted';
+        text.textContent = label;
+        row.append(dot, text);
+        container.append(row);
+      });
+    }
+
+    async function loadReport() {
+      uploadError.classList.add('hidden');
+      const isMock = API_URL === '/api/mock';
+      if (!isMock && !selectedFile) {
+        showError('Add a PDF first so we know what to analyze.');
+        return;
+      }
+      checkButton.disabled = true;
+      loadingPanel.classList.remove('hidden');
+      report.classList.add('hidden');
+      let currentStep = 0;
+      renderSteps(currentStep);
+      const stepTimer = setInterval(() => { currentStep = (currentStep + 1) % steps.length; renderSteps(currentStep); }, 1100);
+      try {
+        let response;
+        if (isMock) {
+          response = await fetch(API_URL, { method: 'GET' });
+        } else {
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          response = await fetch(API_URL, { method: 'POST', body: formData });
+        }
+        if (!response.ok) throw new Error('The analysis service returned an error. Please try again in a moment.');
+        const data = await response.json();
+        if (!Array.isArray(data.results)) throw new Error('We couldn’t read the report. Please try again.');
+        if (!data.session_id) throw new Error('The report did not include a chat session. Restart the server and try again.');
+        activeSessionId = data.session_id;
+        latestResults = data.results.slice().sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+        resetChat(latestResults, data.overall);
+        renderReport(data.overall, latestResults, data.summary, data.coverage);
+      } catch (error) {
+        showError(error.message || 'Something went wrong while checking your paper. Please try again.');
+      } finally {
+        clearInterval(stepTimer);
+        loadingPanel.classList.add('hidden');
+        checkButton.disabled = false;
+      }
+    }
+
+    function scoreStyle(score) {
+      if (score > 70) return { badge: 'bg-red-50 text-red-700 ring-red-100', bar: 'bg-red-500', label: 'High match' };
+      if (score >= 40) return { badge: 'bg-orange-50 text-orange-700 ring-orange-100', bar: 'bg-orange-400', label: 'Review' };
+      return { badge: 'bg-emerald-50 text-emerald-700 ring-emerald-100', bar: 'bg-emerald-500', label: 'Low match' };
+    }
+
+    function safeSourceUrl(rawUrl) {
+      try { const url = new URL(rawUrl, window.location.origin); return ['http:', 'https:'].includes(url.protocol) ? url.href : ''; }
+      catch (_) { return ''; }
+    }
+
+    function appendHighlightedText(parent, text, phrases) {
+      const source = String(text || '');
+      const patterns = (Array.isArray(phrases) ? phrases : [])
+        .filter(Boolean)
+        .map(phrase => String(phrase).trim().split(/\s+/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\W+'))
+        .filter(Boolean);
+      if (!patterns.length) { parent.textContent = source; return; }
+      const matcher = new RegExp(`(${patterns.sort((a, b) => b.length - a.length).join('|')})`, 'gi');
+      let cursor = 0;
+      let match;
+      while ((match = matcher.exec(source)) !== null) {
+        parent.append(document.createTextNode(source.slice(cursor, match.index)));
+        const mark = document.createElement('mark');
+        mark.className = 'rounded bg-amber-100 px-0.5 text-inherit';
+        mark.textContent = match[0];
+        parent.append(mark);
+        cursor = matcher.lastIndex;
+      }
+      parent.append(document.createTextNode(source.slice(cursor)));
+    }
+
+    function inferMatchType(item) {
+      if (item.match_type) return item.match_type;
+      const reason = String(item.reason || '').toLowerCase();
+      if (/(near.verbatim|copied|exact wording)/.test(reason)) return 'Near-verbatim';
+      if (reason.includes('paraphras')) return 'Likely paraphrased';
+      return Number(item.score) < 40 ? 'Low similarity' : 'Possible common idea';
+    }
+
+    function evidenceCategory(item) {
+      const category = item.evidence?.category || '';
+      const categories = {
+        verbatim_copy: { label: 'Copied', style: 'bg-red-50 text-red-700' },
+        paraphrase: { label: 'Paraphrased', style: 'bg-orange-50 text-orange-700' },
+        common_or_generic: { label: 'Generic', style: 'bg-slate-100 text-slate-700' },
+        cited_overlap: { label: 'Cited', style: 'bg-blue-50 text-blue-700' },
+        unrelated: { label: 'Unrelated', style: 'bg-emerald-50 text-emerald-700' }
+      };
+      return categories[category] || { label: 'Unrelated', style: 'bg-emerald-50 text-emerald-700' };
+    }
+
+    function createResultCard(item, index) {
+      const score = Math.max(0, Math.min(100, Number(item.score) || 0));
+      const style = scoreStyle(score);
+      const card = document.createElement('article');
+      card.className = 'result-card rounded-2xl border border-line bg-white p-4 shadow-soft sm:p-5';
+      card.style.animationDelay = `${Math.min(index * 55, 350)}ms`;
+      const top = document.createElement('div');
+      top.className = 'flex flex-wrap items-center justify-between gap-3';
+      const sourceGroup = document.createElement('div');
+      sourceGroup.className = 'flex min-w-0 items-center gap-2';
+      const number = document.createElement('span');
+      number.className = 'mono text-[10px] text-muted';
+      number.textContent = `MATCH ${String(index + 1).padStart(2, '0')}`;
+      const badge = document.createElement('span');
+      badge.className = `rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset ${style.badge}`;
+      badge.textContent = style.label;
+      const typeBadge = document.createElement('span');
+      typeBadge.className = 'rounded-full bg-[#f3f5f2] px-2.5 py-1 text-[10px] font-semibold text-[#536158]';
+      typeBadge.textContent = inferMatchType(item);
+      sourceGroup.append(number, badge, typeBadge);
+      const scoreLabel = document.createElement('span');
+      scoreLabel.className = 'font-display text-lg font-extrabold tracking-tight';
+      scoreLabel.textContent = `${score}%`;
+      const askWhy = document.createElement('button');
+      askWhy.type = 'button';
+      askWhy.className = 'rounded-lg border border-[#dce9df] px-3 py-2 text-xs font-bold text-forest hover:bg-[#f2f8f3]';
+      askWhy.textContent = 'Ask why';
+      askWhy.addEventListener('click', () => {
+        const chunkId = Number(item.chunk_id);
+        document.getElementById('chatChunk').value = String(chunkId);
+        openChat();
+        sendChat(`Explain why chunk ${chunkId} scored ${score}`, chunkId);
+      });
+      const scoreAndAction = document.createElement('div');
+      scoreAndAction.className = 'flex items-center gap-3';
+      scoreAndAction.append(scoreLabel, askWhy);
+      top.append(sourceGroup, scoreAndAction);
+
+      const chunk = document.createElement('p');
+      chunk.className = 'mt-4 border-l-2 border-[#c8dfce] pl-3 text-sm leading-6 text-[#47534b]';
+      appendHighlightedText(chunk, item.chunk || 'No passage text was provided.', item.matched_phrases);
+
+      const evidenceData = item.evidence || {};
+      const category = evidenceCategory(item);
+      const evidenceStrip = document.createElement('div');
+      evidenceStrip.className = 'mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-[#f7f9f6] px-3 py-2 text-[11px]';
+      const evidenceMetric = (labelText, valueText) => {
+        const metric = document.createElement('span');
+        metric.className = 'text-muted';
+        const label = document.createElement('span');
+        label.textContent = `${labelText}: `;
+        const value = document.createElement('strong');
+        value.className = 'font-bold text-ink';
+        value.textContent = valueText;
+        metric.append(label, value);
+        return metric;
+      };
+      const categoryBadge = document.createElement('span');
+      categoryBadge.className = `rounded-full px-2.5 py-1 font-bold ${category.style}`;
+      categoryBadge.textContent = category.label;
+      evidenceStrip.append(
+        evidenceMetric('Verbatim 5-grams', String(evidenceData.verbatim_ngram_count ?? 0)),
+        evidenceMetric('Longest match', `${evidenceData.longest_match_words ?? 0} words`),
+        categoryBadge
+      );
+
+      const evidence = document.createElement('div');
+      evidence.className = 'mt-4 grid gap-3 md:grid-cols-2';
+      const paperEvidence = document.createElement('div');
+      paperEvidence.className = 'rounded-xl bg-[#f7f9f6] p-3';
+      const paperLabel = document.createElement('p');
+      paperLabel.className = 'text-[10px] font-bold uppercase tracking-[.12em] text-muted';
+      paperLabel.textContent = 'Your passage';
+      const paperText = document.createElement('p');
+      paperText.className = 'mt-2 text-xs leading-5 text-[#47534b]';
+      appendHighlightedText(paperText, item.chunk || 'No passage text was provided.', item.matched_phrases);
+      paperEvidence.append(paperLabel, paperText);
+      const sourceEvidence = document.createElement('div');
+      sourceEvidence.className = 'rounded-xl bg-[#f7f9f6] p-3';
+      const sourceLabel = document.createElement('p');
+      sourceLabel.className = 'text-[10px] font-bold uppercase tracking-[.12em] text-muted';
+      sourceLabel.textContent = 'Source abstract excerpt';
+      const sourceText = document.createElement('p');
+      sourceText.className = 'mt-2 text-xs leading-5 text-[#47534b]';
+      appendHighlightedText(sourceText, item.source_excerpt || 'No source excerpt was returned for this passage.', item.matched_phrases);
+      sourceEvidence.append(sourceLabel, sourceText);
+      evidence.append(paperEvidence, sourceEvidence);
+
+      const footer = document.createElement('div');
+      footer.className = 'mt-4 grid gap-4 border-t border-line pt-3 sm:grid-cols-[1fr_auto] sm:items-end';
+      const details = document.createElement('div');
+      details.className = 'min-w-0';
+      const caption = document.createElement('p');
+      caption.className = 'text-[10px] font-bold uppercase tracking-[.13em] text-muted';
+      caption.textContent = 'Closest source';
+      const link = document.createElement('a');
+      link.className = 'mt-1 inline-flex max-w-full items-center gap-1 text-sm font-bold text-forest hover:underline';
+      link.textContent = item.source_title || 'Untitled source';
+      const sourceUrl = safeSourceUrl(item.source_url);
+      if (sourceUrl) { link.href = sourceUrl; link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+      else { link.classList.add('cursor-default'); }
+      const reason = document.createElement('p');
+      reason.className = 'mt-1 text-xs leading-5 text-muted';
+      reason.textContent = item.reason || 'Similarity comparison completed.';
+      const citation = document.createElement('p');
+      citation.className = 'mt-1 text-[11px] font-semibold ' + (item.citation_found === true ? 'text-emerald-700' : item.citation_found === false ? 'text-orange-700' : 'text-muted');
+      citation.textContent = item.citation_status || 'Citation check not available in this sample report';
+      details.append(caption, link, reason, citation);
+      const barWrap = document.createElement('div');
+      barWrap.className = 'w-full sm:w-32';
+      const barLabel = document.createElement('div');
+      barLabel.className = 'mb-1.5 flex justify-between text-[10px] text-muted';
+      const label = document.createElement('span'); label.textContent = 'Score';
+      const value = document.createElement('span'); value.className = 'font-semibold text-ink'; value.textContent = `${score}/100`;
+      barLabel.append(label, value);
+      const track = document.createElement('div'); track.className = 'h-1.5 overflow-hidden rounded-full bg-[#edf0ed]';
+      const fill = document.createElement('div'); fill.className = `h-full rounded-full ${style.bar}`; fill.style.width = `${score}%`;
+      track.append(fill); barWrap.append(barLabel, track); footer.append(details, barWrap);
+      card.append(top, chunk, evidenceStrip, evidence, footer);
+      return card;
+    }
+
+    function addSummaryCard(container, label, value, accent = 'text-ink') {
+      const card = document.createElement('div');
+      card.className = 'rounded-xl border border-line bg-white p-4 shadow-soft';
+      const title = document.createElement('p');
+      title.className = 'text-[10px] font-bold uppercase tracking-[.12em] text-muted';
+      title.textContent = label;
+      const content = document.createElement('p');
+      content.className = `mt-2 text-xl font-extrabold tracking-tight ${accent}`;
+      content.textContent = String(value);
+      card.append(title, content);
+      container.append(card);
+    }
+
+    function renderSummary(summary, results) {
+      const scores = results.map(item => Number(item.score) || 0);
+      const high = summary?.high_matches ?? scores.filter(score => score > 70).length;
+      const medium = summary?.medium_matches ?? scores.filter(score => score >= 40 && score <= 70).length;
+      const low = summary?.low_matches ?? scores.filter(score => score < 40).length;
+      const flagged = summary?.flagged_matches ?? scores.filter(score => score > 40).length;
+      const top = summary?.top_source_title || results[0]?.source_title || 'No source found';
+      const panel = document.getElementById('summaryPanel');
+      panel.replaceChildren();
+      addSummaryCard(panel, 'High matches · >70', high, 'text-red-700');
+      addSummaryCard(panel, 'Medium matches · 40–70', medium, 'text-orange-700');
+      addSummaryCard(panel, 'Low matches · <40', low, 'text-emerald-700');
+      addSummaryCard(panel, 'Top source', top);
+      document.getElementById('flaggedCount').textContent = flagged;
+    }
+
+    function renderCoverage(coverage) {
+      const panel = document.getElementById('coveragePanel');
+      panel.replaceChildren();
+      const heading = document.createElement('h3');
+      heading.className = 'text-sm font-bold';
+      heading.textContent = 'Document coverage';
+      panel.append(heading);
+      const details = document.createElement('p');
+      details.className = 'mt-2 text-xs leading-5 text-muted';
+      if (!coverage) {
+        details.textContent = 'Coverage details are not included in this sample report.';
+      } else {
+        const parts = [
+          `${Number(coverage.document_words || 0).toLocaleString()} document words`,
+          `${Number(coverage.analyzed_words || 0).toLocaleString()} words analyzed`,
+          `${coverage.analyzed_chunks || 0} passages analyzed`,
+        ];
+        if (coverage.skipped_short_chunks) parts.push(`${coverage.skipped_short_chunks} short passage(s) skipped`);
+        if (coverage.truncated) parts.push(`analysis limited to the first ${coverage.chunk_limit || 15} passages`);
+        details.textContent = parts.join(' · ') + '. Results compare passages with returned scholarly abstracts. The reference check looks for a source title or arXiv ID in References; it does not verify in-text citations.';
+      }
+      panel.append(details);
+    }
+
+    function renderReport(overall, results, summary, coverage) {
+      const overallScore = Math.max(0, Math.min(100, Number(overall) || 0));
+      document.getElementById('overallValue').innerHTML = `${overallScore}<span class="text-xl">%</span>`;
+      document.getElementById('overallRing').style.setProperty('--progress', `${overallScore * 3.6}deg`);
+      document.getElementById('passageCount').textContent = results.length;
+      document.getElementById('resultCount').textContent = `${results.length} ${results.length === 1 ? 'passage' : 'passages'} compared`;
+      renderSummary(summary, results);
+      renderCoverage(coverage);
+      renderResults();
+      report.classList.remove('hidden');
+      report.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function renderResults() {
+      const onlyFlagged = document.getElementById('flaggedToggle').checked;
+      const visible = latestResults.filter(item => !onlyFlagged || Number(item.score) > 40);
+      const list = document.getElementById('resultsList');
+      list.replaceChildren(...visible.map((item, index) => createResultCard(item, index)));
+      document.getElementById('emptyResults').classList.toggle('hidden', visible.length > 0);
+    }
+
+    function csvCell(value) {
+      return `"${String(value ?? '').replace(/"/g, '""')}"`;
+    }
+
+    function downloadCsv() {
+      const columns = ['Chunk ID', 'Score', 'Match type', 'Source title', 'Source URL', 'Reason', 'Citation status', 'Paper passage', 'Source abstract excerpt'];
+      const rows = latestResults.map(item => [item.chunk_id, item.score, inferMatchType(item), item.source_title, item.source_url, item.reason, item.citation_status || 'Not available', item.chunk, item.source_excerpt]);
+      const csv = '\uFEFF' + [columns, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'agentic-similarity-report.csv';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function resetChat(results, overall) {
+      closeChat(false);
+      const launcher = document.getElementById('chatLauncher');
+      launcher.classList.toggle('hidden', !activeSessionId);
+      launcher.style.display = activeSessionId ? 'inline-flex' : 'none';
+      const messages = document.getElementById('chatMessages');
+      messages.replaceChildren();
+      const welcome = document.createElement('div');
+      welcome.className = 'mr-auto max-w-[96%] whitespace-pre-wrap rounded-2xl rounded-bl-sm border border-line bg-white px-4 py-3 text-sm leading-6 text-ink';
+      welcome.textContent = 'I can explain the report evidence, compare passages, and clarify match categories. Similarity is a review signal, not a verdict.';
+      messages.append(welcome);
+      const select = document.getElementById('chatChunk');
+      select.replaceChildren(new Option('Entire report', ''));
+      results.forEach(item => {
+        const option = new Option(`Chunk ${item.chunk_id} · ${item.score}%`, String(item.chunk_id));
+        select.add(option);
+      });
+      const suggestionList = [
+        `Why is the overall score ${Number(overall) || 0}%?`,
+        'Which chunks are verbatim copies?',
+        'Which matches are just paraphrases?',
+        'Are any of these matches meaningless or generic?'
+      ];
+      const suggestionWrap = document.querySelector('#chatSuggestions > div');
+      suggestionWrap.replaceChildren(...suggestionList.map(question => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'rounded-full border border-line bg-white px-3 py-1.5 text-left text-[11px] font-semibold text-[#536158] transition hover:border-[#b9d6c3] hover:bg-[#f2f8f3] hover:text-forest';
+        chip.textContent = question;
+        chip.addEventListener('click', () => {
+          select.value = '';
+          sendChat(question, null);
+        });
+        return chip;
+      }));
+    }
+
+    function addChatBubble(role, content) {
+      const messages = document.getElementById('chatMessages');
+      const bubble = document.createElement('div');
+      bubble.className = role === 'user'
+        ? 'ml-auto max-w-[90%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-forest px-4 py-3 text-sm leading-6 text-white'
+        : 'mr-auto max-w-[96%] whitespace-pre-wrap rounded-2xl rounded-bl-sm border border-line bg-white px-4 py-3 text-sm leading-6 text-ink';
+      bubble.textContent = content;
+      messages.append(bubble);
+      messages.scrollTop = messages.scrollHeight;
+      return bubble;
+    }
+
+    function openChat() {
+      const overlay = document.getElementById('chatOverlay');
+      if (!activeSessionId) return;
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      document.getElementById('chatInput').focus({ preventScroll: true });
+    }
+
+    function closeChat(restoreFocus = true) {
+      const overlay = document.getElementById('chatOverlay');
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      overlay.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('overflow-hidden');
+      if (restoreFocus && !document.getElementById('chatLauncher').classList.contains('hidden')) {
+        document.getElementById('chatLauncher').focus();
+      }
+    }
+
+    function addTypingIndicator() {
+      const bubble = addChatBubble('assistant', '');
+      bubble.setAttribute('aria-label', 'Agent is typing');
+      bubble.classList.add('flex', 'items-center', 'gap-1.5');
+      for (let i = 0; i < 3; i += 1) {
+        const dot = document.createElement('span');
+        dot.className = 'typing-dot h-2 w-2 rounded-full bg-[#789083]';
+        bubble.append(dot);
+      }
+      return bubble;
+    }
+
+    function renderReplyText(container, text) {
+      const pattern = /\*\*([^*]+)\*\*/g;
+      let cursor = 0;
+      let match;
+      while ((match = pattern.exec(String(text || ''))) !== null) {
+        container.append(document.createTextNode(String(text).slice(cursor, match.index)));
+        const strong = document.createElement('strong');
+        strong.className = 'font-bold';
+        strong.textContent = match[1];
+        container.append(strong);
+        cursor = pattern.lastIndex;
+      }
+      container.append(document.createTextNode(String(text || '').slice(cursor)));
+    }
+
+    function addAgentTurn(reply, toolSteps) {
+      const messages = document.getElementById('chatMessages');
+      const turn = document.createElement('div');
+      turn.className = 'mr-auto max-w-[96%] space-y-2';
+      const bubble = document.createElement('div');
+      bubble.className = 'whitespace-pre-wrap rounded-2xl rounded-bl-sm border border-line bg-white px-4 py-3 text-sm leading-6 text-ink';
+      renderReplyText(bubble, reply || 'I could not generate an explanation for that question.');
+      const details = document.createElement('details');
+      details.className = 'rounded-xl border border-line bg-white/80 px-3 py-2';
+      const summary = document.createElement('summary');
+      summary.className = 'cursor-pointer text-[11px] font-bold text-[#536158]';
+      summary.textContent = 'Agent steps';
+      const list = document.createElement('ul');
+      list.className = 'mt-2 space-y-1.5';
+      if (Array.isArray(toolSteps) && toolSteps.length) {
+        toolSteps.forEach(step => {
+          const row = document.createElement('li');
+          row.className = 'text-[10px] leading-4 text-muted';
+          const args = step.args && typeof step.args === 'object' ? Object.values(step.args) : [];
+          const call = `${step.tool || 'tool'}(${args.join(', ')})`;
+          row.textContent = `${call} → ${step.summary || 'Completed'}`;
+          list.append(row);
+        });
+      } else {
+        const row = document.createElement('li');
+        row.className = 'text-[10px] leading-4 text-muted';
+        row.textContent = 'No tool steps were returned.';
+        list.append(row);
+      }
+      details.append(summary, list);
+      turn.append(bubble, details);
+      messages.append(turn);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    async function sendChat(message, chunkIdOverride) {
+      if (!activeSessionId || !message.trim()) return;
+      addChatBubble('user', message.trim());
+      const sendButton = document.getElementById('chatSend');
+      const input = document.getElementById('chatInput');
+      sendButton.disabled = true;
+      sendButton.textContent = 'Thinking…';
+      const pending = addTypingIndicator();
+      try {
+        const rawChunkId = document.getElementById('chatChunk').value;
+        const chunkId = chunkIdOverride !== undefined ? chunkIdOverride : (rawChunkId ? Number(rawChunkId) : null);
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: activeSessionId, message: message.trim(), chunk_id: chunkId })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'The report assistant could not answer. Try again.');
+        pending.remove();
+        addAgentTurn(data.reply, data.steps);
+      } catch (error) {
+        pending.remove();
+        addAgentTurn(error.message || 'The report assistant could not connect. Please try again.', []);
+      } finally {
+        sendButton.disabled = false;
+        sendButton.textContent = 'Ask';
+        if (!document.getElementById('chatOverlay').classList.contains('hidden')) input.focus();
+      }
+    }
+
+    document.getElementById('flaggedToggle').addEventListener('change', renderResults);
+    document.getElementById('downloadCsv').addEventListener('click', downloadCsv);
+    document.getElementById('printReport').addEventListener('click', () => window.print());
+    document.getElementById('chatLauncher').addEventListener('click', openChat);
+    document.getElementById('chatClose').addEventListener('click', () => closeChat());
+    document.getElementById('chatOverlay').addEventListener('click', event => {
+      if (event.target === event.currentTarget) closeChat();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !document.getElementById('chatOverlay').classList.contains('hidden')) closeChat();
+    });
+    document.getElementById('chatForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const input = document.getElementById('chatInput');
+      const message = input.value;
+      input.value = '';
+      sendChat(message);
+    });
+    checkButton.addEventListener('click', loadReport);
+  </script>
+</body>
+</html>
