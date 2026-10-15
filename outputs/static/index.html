@@ -298,6 +298,44 @@
       return categories[category] || { label: 'Unrelated', style: 'bg-emerald-50 text-emerald-700' };
     }
 
+    function passageSuggestions(item) {
+      const evidence = item.evidence || {};
+      const category = evidence.category || '';
+      const hasCitation = evidence.has_citation === true || item.citation_found === true;
+      if (category === 'verbatim_copy') {
+        return [
+          'If you need the source’s exact wording, mark it clearly as a quotation and cite the source in the required style.',
+          'Otherwise, set the source aside, explain the idea from your understanding, add your own analysis, and still cite the source.',
+          'Check that the source appears in your reference list and that the citation supports the specific claim.'
+        ];
+      }
+      if (category === 'paraphrase') {
+        return [
+          'Keep the source attribution: paraphrased ideas still need a citation.',
+          'Rebuild the explanation from your understanding and connect it to your own argument; changing a few words is not enough.',
+          'Check that the revised passage preserves the source’s meaning and does not imply that its idea is yours.'
+        ];
+      }
+      if (category === 'cited_overlap' || hasCitation) {
+        return [
+          'Verify that the in-text citation points to a complete, matching reference entry.',
+          'If the wording is exact, use quotation marks or a block quote and add a page or section locator when your citation style requires one.',
+          'If you paraphrase, retain the citation and make your own interpretation clear.'
+        ];
+      }
+      if (category === 'common_or_generic') {
+        return [
+          'Review the source pair in context; generic wording or a weak abstract match may not need a rewrite.',
+          'Make the passage more specific by stating your own finding, reasoning, or evidence instead of relying on broad boilerplate.',
+          'Cite any source-specific claim or factual statement you keep.'
+        ];
+      }
+      return [
+        'Check the linked source and matched passage before making changes; this result may be a weak or unrelated match.',
+        'Keep the passage if it accurately expresses your own work, and cite external ideas or evidence where appropriate.'
+      ];
+    }
+
     function createResultCard(item, index) {
       const score = Math.max(0, Math.min(100, Number(item.score) || 0));
       const style = scoreStyle(score);
@@ -336,10 +374,6 @@
       scoreAndAction.append(scoreLabel, askWhy);
       top.append(sourceGroup, scoreAndAction);
 
-      const chunk = document.createElement('p');
-      chunk.className = 'mt-4 border-l-2 border-[#c8dfce] pl-3 text-sm leading-6 text-[#47534b]';
-      appendHighlightedText(chunk, item.chunk || 'No passage text was provided.', item.matched_phrases);
-
       const evidenceData = item.evidence || {};
       const category = evidenceCategory(item);
       const evidenceStrip = document.createElement('div');
@@ -364,27 +398,86 @@
         categoryBadge
       );
 
-      const evidence = document.createElement('div');
-      evidence.className = 'mt-4 grid gap-3 md:grid-cols-2';
-      const paperEvidence = document.createElement('div');
-      paperEvidence.className = 'rounded-xl bg-[#f7f9f6] p-3';
-      const paperLabel = document.createElement('p');
-      paperLabel.className = 'text-[10px] font-bold uppercase tracking-[.12em] text-muted';
-      paperLabel.textContent = 'Your passage';
-      const paperText = document.createElement('p');
-      paperText.className = 'mt-2 text-xs leading-5 text-[#47534b]';
-      appendHighlightedText(paperText, item.chunk || 'No passage text was provided.', item.matched_phrases);
-      paperEvidence.append(paperLabel, paperText);
-      const sourceEvidence = document.createElement('div');
-      sourceEvidence.className = 'rounded-xl bg-[#f7f9f6] p-3';
-      const sourceLabel = document.createElement('p');
-      sourceLabel.className = 'text-[10px] font-bold uppercase tracking-[.12em] text-muted';
-      sourceLabel.textContent = 'Source abstract excerpt';
-      const sourceText = document.createElement('p');
-      sourceText.className = 'mt-2 text-xs leading-5 text-[#47534b]';
-      appendHighlightedText(sourceText, item.source_excerpt || 'No source excerpt was returned for this passage.', item.matched_phrases);
-      sourceEvidence.append(sourceLabel, sourceText);
-      evidence.append(paperEvidence, sourceEvidence);
+      const evidence = document.createElement('section');
+      evidence.className = 'mt-4';
+      const evidenceHeading = document.createElement('h4');
+      evidenceHeading.className = 'mb-2 text-[10px] font-bold uppercase tracking-[.12em] text-muted';
+      evidenceHeading.textContent = 'Compared paragraphs';
+      const paragraphDropdowns = document.createElement('div');
+      paragraphDropdowns.className = 'space-y-2';
+      const addComparedParagraph = (title, text, emptyMessage) => {
+        const details = document.createElement('details');
+        details.className = 'rounded-xl border border-line bg-[#fbfcfa]';
+        const summary = document.createElement('summary');
+        summary.className = 'flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-semibold text-[#536158] marker:hidden';
+        const label = document.createElement('span');
+        label.textContent = title;
+        const arrow = document.createElement('span');
+        arrow.className = 'text-base leading-none text-muted';
+        arrow.setAttribute('aria-hidden', 'true');
+        arrow.textContent = '⌄';
+        summary.append(label, arrow);
+        const paragraph = document.createElement('p');
+        paragraph.className = 'border-t border-line px-3 py-3 text-xs leading-5 text-[#47534b]';
+        appendHighlightedText(paragraph, text || emptyMessage, item.matched_phrases);
+        details.append(summary, paragraph);
+        paragraphDropdowns.append(details);
+      };
+      addComparedParagraph('Your paragraph', item.chunk, 'No passage text was provided.');
+      addComparedParagraph('Compared source paragraph', item.source_excerpt, 'No source excerpt was returned for this passage.');
+      evidence.append(evidenceHeading, paragraphDropdowns);
+
+      const suggestions = document.createElement('details');
+      suggestions.className = 'mt-3 rounded-xl border border-[#e6eae5] bg-white';
+      const suggestionSummary = document.createElement('summary');
+      suggestionSummary.className = 'flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-bold text-forest marker:hidden';
+      const suggestionTitle = document.createElement('span');
+      suggestionTitle.textContent = 'What to do next';
+      const suggestionChevron = document.createElement('span');
+      suggestionChevron.className = 'text-base leading-none text-muted';
+      suggestionChevron.setAttribute('aria-hidden', 'true');
+      suggestionChevron.textContent = '⌄';
+      suggestionSummary.append(suggestionTitle, suggestionChevron);
+      const suggestionContent = document.createElement('div');
+      suggestionContent.className = 'border-t border-line px-4 py-3';
+      const suggestionSource = document.createElement('p');
+      suggestionSource.className = 'mb-2 text-[10px] font-bold uppercase tracking-[.1em] text-forest';
+      suggestionSource.textContent = 'Personalized next steps';
+      const suggestionList = document.createElement('ul');
+      suggestionList.className = 'space-y-2 pl-4';
+      suggestionContent.append(suggestionSource, suggestionList);
+      suggestions.append(suggestionSummary, suggestionContent);
+      const renderSuggestionItems = (items, source) => {
+        suggestionSource.textContent = source === 'ai' ? 'AI-generated next steps' : 'Practical next steps';
+        suggestionList.replaceChildren();
+        (Array.isArray(items) ? items : []).forEach(suggestion => {
+          const entry = document.createElement('li');
+          entry.className = 'list-disc text-xs leading-5 text-[#536158]';
+          entry.textContent = suggestion;
+          suggestionList.append(entry);
+        });
+      };
+      suggestions.addEventListener('toggle', async () => {
+        if (!suggestions.open || suggestions.dataset.loaded === 'true' || suggestions.dataset.loading === 'true') return;
+        suggestions.dataset.loading = 'true';
+        suggestionSource.textContent = 'Getting tailored next steps…';
+        suggestionList.replaceChildren();
+        try {
+          const response = await fetch('/api/suggestions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: activeSessionId, chunk_id: Number(item.chunk_id) })
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Suggestions are temporarily unavailable.');
+          renderSuggestionItems(data.suggestions, data.source);
+        } catch (_) {
+          renderSuggestionItems(passageSuggestions(item), 'rules');
+        } finally {
+          suggestions.dataset.loading = 'false';
+          suggestions.dataset.loaded = 'true';
+        }
+      });
 
       const footer = document.createElement('div');
       footer.className = 'mt-4 grid gap-4 border-t border-line pt-3 sm:grid-cols-[1fr_auto] sm:items-end';
@@ -416,7 +509,7 @@
       const track = document.createElement('div'); track.className = 'h-1.5 overflow-hidden rounded-full bg-[#edf0ed]';
       const fill = document.createElement('div'); fill.className = `h-full rounded-full ${style.bar}`; fill.style.width = `${score}%`;
       track.append(fill); barWrap.append(barLabel, track); footer.append(details, barWrap);
-      card.append(top, chunk, evidenceStrip, evidence, footer);
+      card.append(top, evidenceStrip, evidence, suggestions, footer);
       return card;
     }
 
