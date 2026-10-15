@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from agent import SESSIONS
+from llm import ask_llm
 
 
 SYSTEM_PROMPT = """You are an academic integrity analyst explaining a plagiarism report. Always call tools to
@@ -209,6 +210,81 @@ def _tool_summary(name: str, result: Any) -> str:
         citations = result.get("citation_strings", [])
         return f"found citations: {', '.join(citations)}" if citations else "no citation marker found"
     return "Returned report evidence."
+
+
+def suggest_revisions(session_id: str, chunk_id: int) -> dict[str, Any]:
+    """Generate practical, integrity-preserving next steps for one passage."""
+    try:
+        result = _result_for_chunk(session_id, chunk_id)
+        if result is None:
+            return {"error": f"Chunk {chunk_id} was not found in this report."}
+
+        evidence = result.get("evidence", {})
+        source_text = result.get("source_text") or result.get("source_excerpt", "")
+        prompt = (
+            "You are helping a researcher responsibly revise and attribute a passage. "
+            "Give 2 to 4 concise, concrete next actions focused on what the author should do. "
+            "Do not restate the similarity score or describe what matched. Do not rewrite the "
+            "passage or suggest changing words to evade a plagiarism checker. Recommend actions "
+            "such as adding/repairing a citation, quoting exact borrowed wording, explaining an "
+            "idea independently with attribution, or checking whether a weak match needs any edit. "
+            "Return only a numbered list, one actionable sentence per item.\n\n"
+            f"Evidence category: {evidence.get('category', 'unknown')}\n"
+            f"Citation marker detected: {evidence.get('has_citation', False)}\n"
+            f"Matched blocks: {json.dumps(evidence.get('matched_blocks', [])[:3], ensure_ascii=False)}\n"
+            f"Paper passage:\n{result.get('chunk', '')}\n\n"
+            f"Candidate source ({result.get('source_title', 'unknown')}):\n{source_text[:3500]}"
+        )
+        answer = ask_llm(prompt)
+        suggestions = []
+        for line in answer.splitlines():
+            cleaned = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", line).strip()
+            if cleaned:
+                suggestions.append(cleaned)
+            if len(suggestions) == 4:
+                break
+        if suggestions:
+            return {"suggestions": suggestions, "source": "ai"}
+
+        category = evidence.get("category", "unrelated")
+        if category == "verbatim_copy":
+            fallback = [
+                "If you need the exact wording, mark it as a quotation and cite the source in your required style.",
+                "Otherwise, explain the idea from your understanding, add your own analysis, and still cite the source.",
+                "Check that the citation points to a complete reference entry and supports this claim.",
+            ]
+        elif category == "paraphrase":
+            fallback = [
+                "Keep a citation because paraphrased ideas still need attribution.",
+                "Rebuild the explanation from your understanding and connect it to your own argument; avoid simple synonym swaps.",
+                "Check that the revised passage preserves the source meaning and clearly attributes it.",
+            ]
+        elif category == "cited_overlap" or evidence.get("has_citation"):
+            fallback = [
+                "Verify that the in-text citation points to a complete, matching reference entry.",
+                "If the wording is exact, add quotation marks or a block quote and a page locator when required by your style.",
+                "Make your own interpretation clear while retaining attribution for the source idea.",
+            ]
+        elif category == "common_or_generic":
+            fallback = [
+                "Review the source pair in context; a generic or weak match may not need a rewrite.",
+                "Where useful, replace broad boilerplate with your specific reasoning, evidence, or findings.",
+                "Cite any source-specific claim or factual statement you keep.",
+            ]
+        else:
+            fallback = [
+                "Check the linked source before editing; this candidate may be weak or unrelated.",
+                "Keep text that accurately describes your own work and cite any external ideas or evidence.",
+            ]
+        return {"suggestions": fallback, "source": "rules"}
+    except Exception:
+        return {
+            "suggestions": [
+                "Review the passage against its linked source before editing.",
+                "Cite borrowed ideas and clearly quote wording that is retained verbatim.",
+            ],
+            "source": "rules",
+        }
 
 
 def _fallback_reply(session_id: str, message: str, chunk_id: int | None) -> tuple[str, list[dict[str, Any]]]:

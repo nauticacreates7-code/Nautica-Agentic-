@@ -20,6 +20,11 @@ class ChatRequest(BaseModel):
     chunk_id: int | None = None
 
 
+class SuggestionRequest(BaseModel):
+    session_id: str
+    chunk_id: int
+
+
 @app.get("/")
 async def home() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -181,6 +186,29 @@ async def explain_report(request: ChatRequest):
         return JSONResponse(
             status_code=500,
             content={"error": "The report explanation could not be generated. Please try again."},
+        )
+
+
+@app.post("/api/suggestions")
+async def get_passage_suggestions(request: SuggestionRequest):
+    from agent import SESSIONS
+
+    if request.session_id not in SESSIONS:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Unknown or expired report session. Run a plagiarism check again first."},
+        )
+    try:
+        from chat_agent import suggest_revisions
+
+        result = suggest_revisions(request.session_id, request.chunk_id)
+        if result.get("error"):
+            return JSONResponse(status_code=404, content=result)
+        return result
+    except Exception:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Practical suggestions could not be loaded. Please try again."},
         )
 
 
